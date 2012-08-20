@@ -180,9 +180,53 @@ class syntax_plugin_datatemplate_entry extends syntax_plugin_data_entry {
         $raw = str_replace($replacers['raw_keys'], $replacers['raw_vals'], $rawFile);
         $raw = str_replace($replacers['keys'], $replacers['vals'], $raw);
         $raw = preg_replace('/@@.*?@@/', '', $raw);
+
+        // parse conditions
+        $raw = $this->_parseConditions($raw);
+
         $instr = p_get_instructions($raw);
 
         return $instr;
+    }
+
+    /**
+     * Replace conditions, A Smarty-like {if CONDITION}CONTENTS{/if} parser.
+     *
+     * If CONDITION evaluates to TRUE, CONTENTS is preserved, otherwise CONTENTS is removed from output.
+     * Does not handle nesting.
+     * Only true values parsed, no expressions yet.
+     *
+     * @link https://github.com/ccl/dokuwiki-plugin-datatemplate/issues/6
+     *
+     * @param string $text
+     * @return string
+     */
+    function _parseConditions($text) {
+        if (!preg_match_all('#{if\s*(?P<condition>[^}]*)}(?P<content>.*?){/if}#s', $text, $matches, PREG_OFFSET_CAPTURE)) {
+            return $text;
+        }
+
+        $res = '';
+        $offset = 0;
+        foreach ($matches[0] as $i => $match) {
+            // prior text
+            $res .= substr($text, $offset, $match[1] - $offset);
+
+            $condition = $matches['condition'][$i][0];
+            $content = $matches['content'][$i][0];
+
+            // parse condition.
+            // for now only true value is evaluated
+            if (trim($condition)) {
+                $res .= $content;
+            }
+
+            // update offset
+            $offset = $match[1] + strlen($match[0]);
+        }
+
+        $res .= substr($text, $offset);
+        return $res;
     }
 
     /**
